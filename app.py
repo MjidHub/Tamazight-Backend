@@ -3,40 +3,75 @@ from flask_cors import CORS, cross_origin
 from flask import jsonify
 import pandas as pd
 import numpy as np
+import random
 import os.path
-import csv
 
 app = Flask(__name__)
 CORS(app, resources=r'*')
 dictionary = pd.read_excel('lexicon.xlsx', sheet_name='V')
 dictionary = dictionary.replace(np.nan, '', regex=True)
-print(dictionary.columns)
 sentencesToReturn = []
+to_duplicate = ['Common Noun', 'Proper Noun', 'Verb', 'Adjective', 'Preposition', 'Pronoun', 'Conjunction',
+                'Punctuation']
 mappings = dict()
 mappings['Common Noun'] = 'CN'
 mappings['Proper Noun'] = 'PN'
 mappings['Verb'] = 'V'
-mappings['Adverb'] = 'AV'
-mappings['Adjective'] = 'AJ'
-mappings['Preposition'] = 'PP'
+mappings['Adjective'] = 'ADJ'
+mappings['Preposition'] = 'prep'
 mappings['Punctuation'] = 'PU'
-mappings['Object Pronoun'] = 'PO'
-mappings['Subject Pronoun'] = 'PS'
-mappings['Determinant'] = 'DE'
+mappings['Pronoun'] = 'PRON'
+mappings['Conjunction'] = 'CONJ'
+mappings['None'] = ''
+mappings[''] = ''
+mappings['M'] = 'm'
+mappings['F'] = 'f'
+mappings['Possessive'] = 'poss'
+mappings['Person Free'] = 'persfree'
+mappings['1st Person'] = 1
+mappings['2nd Person'] = 2
+mappings['3rd Person'] = 3
+mappings['Singular'] = 's'
+mappings['Plural'] = 'p'
+mappings['Aorist'] = 'aorist'
+mappings['Imperfect'] = 'imperf'
+mappings['Perfect Positive'] = 'perfpos'
+mappings['Perfect Negative'] = 'perfneg'
+mappings['Annex'] = 'annex'
+mappings['Free'] = 'free'
+mappings['Yes'] = 'y'
+mappings['No'] = 'n'
+mappings['Both'] = 'd'
+mappings['Past'] = 1
+mappings['Present'] = 2
+mappings['Future'] = 3
+mappings['gender'] = 'GEN'
+mappings['type'] = 'TYPE'
+mappings['pos'] = 'POS'
+mappings['person'] = 'PERS'
+mappings['tense'] = 'TENSE'
+mappings['number'] = 'NUM'
+mappings['state'] = 'STATE'
+mappings['radical'] = 'RADICAL'
+mappings['annex'] = 'ANNEX'
+mappings['aspect'] = 'ASPECT'
+for part_of_speech in to_duplicate:
+    for k in range(1, 10):
+        dup = part_of_speech + str(k)
+        mappings[dup] = mappings[part_of_speech]
 
 
 class WordStructure:
     def __init__(self):
-        self.type = ''
-        self.gender = ''
-        self.person = ''
-        self.number = ''
-        self.aspect = ''
-        self.type = ''
-        self.tense = ''
-        self.state = ''
-        self.radical = ''
-        self.annex = ''
+        self.pos = ''
+        self.gender = []
+        self.person = []
+        self.number = []
+        self.aspect = []
+        self.type = []
+        self.tense = []
+        self.state = []
+        self.annex = []
 
 
 class Hypothesis:
@@ -48,77 +83,86 @@ class Hypothesis:
         self.type = []
         self.tense = []
         self.state = []
-        self.radical = []
         self.annex = []
 
 
 general_hypotheses = Hypothesis()
 specific_hypotheses = Hypothesis()
-unified_hypothesis = Hypothesis()
+unified_specific_hypothesis = Hypothesis()
+unified_general_hypothesis = Hypothesis()
 
 
 def check(word, feature):
-    if word['type'] == feature.type:
-        if feature.gender == '' or feature.gender == word['gender']:
-            if feature.person == '' or feature.type == word['person']:
-                if feature.number == '' or feature.number == word['number']:
-                    if feature.tense == '' or feature.tense == word['tense']:
-                        if feature.aspect == '' or feature.aspect == word['aspect']:
-                            if feature.type == '' or feature.type == word['type']:
-                                if feature.state == '' or feature.state == word['state']:
-                                    if feature.radical == '' or feature.radical == word['radical']:
-                                        if feature.annex == '' or feature.annex == word['annex']:
-                                            return True
+    if word['POS'] == mappings[feature.pos]:
+        if feature.gender == [] or word['GEN'] in feature.gender:
+            if feature.person == [] or word['PERS'] in feature.person:
+                if feature.number == [] or word['NUM'] in feature.number:
+                    if feature.tense == [] or word['TENSE'] in feature.tense:
+                        if feature.aspect == [] or word['ASPECT'] in feature.aspect:
+                            if feature.type == [] or word['TYPE'] in feature.type:
+                                if feature.state == [] or word['STATE'] in feature.state:
+                                    if feature.annex == [] or word['ANNEX'] in feature.annex:
+                                        return True
     return False
 
 
-def dfs(index, sentence, pattern):
+def get_word_feature(word, word_type, feature):
+    dict_type = dictionary[dictionary['POS'] == mappings[word_type]].copy()
+    if mappings[word_type] == 'prep' or mappings[word_type] == 'CONJ':
+        word_in_dict = dict_type[dict_type['BASE'] == word]
+    else:
+        word_in_dict = dict_type[dict_type['FULL'] == word]
+    feature_type = word_in_dict[mappings[feature]].tolist()
+    return feature_type
+
+
+def dfs(index, sentence, pattern, number_needed, tpe):
+    if len(sentencesToReturn) == (10 * number_needed):
+        return
+
     if index == len(pattern):
         sentencesToReturn.append(sentence)
         return
 
     feature = WordStructure()
-    feature.type = pattern[index]
-    for i in range(0, index):
-        if index in unified_hypothesis.gender[i]:
-            feature.gender = sentence[i].gender
-        if index in unified_hypothesis.person[i]:
-            feature.person = sentence[i].person
-        if index in unified_hypothesis.number[i]:
-            feature.number = sentence[i].number
-        if index in unified_hypothesis.tense[i]:
-            feature.tense = sentence[i].tense
-        if index in unified_hypothesis.aspect[i]:
-            feature.aspect = sentence[i].aspect
-        if index in unified_hypothesis.radical[i]:
-            feature.radical = sentence[i].radical
-        if index in unified_hypothesis.annex[i]:
-            feature.annex = sentence[i].annex
-        if index in unified_hypothesis.state[i]:
-            feature.state = sentence[i].state
-        if index in unified_hypothesis.type[i]:
-            feature.type = sentence[i].type
-
-    for word in dictionary:
-        temp_sentence = sentence
-        if check(word, feature):
-            temp_sentence.append(word)
-            dfs(index + 1, temp_sentence, pattern)
-
-
-def get_word_feature(word, word_type, feature):
-    dict_type = dictionary[dictionary['POS'] == word_type]
-    if word_type == 'prep' or word_type == 'CONJ':
-        word_in_dict = dict_type[dict_type['BASE'] == word]
+    feature.pos = pattern[index]
+    if type == 'specific':
+        usable_hypotheses = unified_specific_hypothesis
     else:
-        word_in_dict = dict_type[dict_type['FULL'] == word]
-    feature_type = word_in_dict[feature]
-    return feature_type
+        usable_hypotheses = unified_general_hypothesis
+    for i in range(0, index):
+        if index in usable_hypotheses.gender[i]:
+            feature.gender = get_word_feature(sentence[i], pattern[i], 'gender')
+        if index in usable_hypotheses.person[i]:
+            feature.person = get_word_feature(sentence[i], pattern[i], 'person')
+        if index in usable_hypotheses.number[i]:
+            feature.number = get_word_feature(sentence[i], pattern[i], 'number')
+        if index in usable_hypotheses.tense[i]:
+            feature.tense = get_word_feature(sentence[i], pattern[i], 'tense')
+        if index in usable_hypotheses.aspect[i]:
+            feature.aspect = get_word_feature(sentence[i], pattern[i], 'aspect')
+        if index in usable_hypotheses.annex[i]:
+            feature.annex = get_word_feature(sentence[i], pattern[i], 'annex')
+        if index in usable_hypotheses.state[i]:
+            feature.state = get_word_feature(sentence[i], pattern[i], 'state')
+        if index in usable_hypotheses.type[i]:
+            feature.type = get_word_feature(sentence[i], pattern[i], 'type')
+
+    global dictionary
+    dictionary = dictionary.sample(frac=1)
+    for i, row in dictionary.iterrows():
+        temp_sentence = sentence[:]
+        if check(row, feature):
+            if row['POS'] == 'prep' or row['POS'] == 'CONJ':
+                temp_sentence.append(row['BASE'])
+            else:
+                temp_sentence.append(row['FULL'])
+            dfs(index + 1, temp_sentence, pattern, number_needed, tpe)
 
 
 def initialize_general_hypotheses(hypothesis_length):
     initial_general = []
-    for i in range(1, hypothesis_length):
+    for i in range(0, hypothesis_length):
         matches = [i]
         initial_general.append(matches)
     return initial_general
@@ -126,73 +170,98 @@ def initialize_general_hypotheses(hypothesis_length):
 
 def initialize_specific_hypotheses(dataset, feature):
     initial_specific = [initialize_general_hypotheses(len(dataset.columns) - 1)]
-    for row in dataset:
-        if dataset['label'] == 'yes':
-            for i in range(0, len(dataset.columns) - 1, -1):
-                word = row[i]
-                word_type = dataset.columns[i]
+    cols = dataset.columns[:]
+    for index, row in dataset.iterrows():
+        if row['label'] == 'yes':
+            for i in range(0, len(cols) - 1):
+                word = row[cols[i]]
+                word_type = cols[i]
                 feature_type = get_word_feature(word, word_type, feature)
-                for j in range(0, i, -1):
-                    word = row[j]
-                    word_type = dataset.columns[j]
+                for j in range(0, i):
+                    word = row[cols[j]]
+                    word_type = cols[j]
                     feature_type_to_match = get_word_feature(word, word_type, feature)
-                    if feature_type == feature_type_to_match:
-                        initial_specific[0][i].append(j)
+                    matchy = False
+                    for feat in feature_type:
+                        if feat in feature_type_to_match:
+                            matchy = True
+                            break
+                    if matchy:
+                        initial_specific[0][j].append(i)
             break
     return initial_specific
+
+
+def populate_from_excel(df, hypos, cols):
+    temp_hypo = []
+    for index, row in df.iterrows():
+        for col in cols:
+            if col != 'genre' and col != 'feature':
+                list_hypo = []
+                for c in row[col]:
+                    if '0' <= c <= '9':
+                        list_hypo.append(int(c))
+                temp_hypo.append(list_hypo)
+        hypos.append(temp_hypo)
 
 
 def get_general_hypotheses(pattern):
     hypotheses_file_name = get_filename('_hypotheses', pattern)
     if os.path.exists(hypotheses_file_name):
-
-        total_hypotheses = pd.read_csv(hypotheses_file_name)
-        general = total_hypotheses[total_hypotheses['type'] == 'general']
-
-        general_hypotheses.gender = general[general['feature'] == 'gender']
-        general_hypotheses.person = general[general['feature'] == 'person']
-        general_hypotheses.number = general[general['feature'] == 'number']
-        general_hypotheses.aspect = general[general['feature'] == 'aspect']
-        general_hypotheses.type = general[general['feature'] == 'type']
-        general_hypotheses.tense = general[general['feature'] == 'tense']
-        general_hypotheses.state = general[general['feature'] == 'state']
-        general_hypotheses.radical = general[general['feature'] == 'radical']
-        general_hypotheses.annex = general[general['feature'] == 'annex']
+        total_hypotheses = pd.read_excel(hypotheses_file_name, sheet_name='Sheet1')
+        cols = total_hypotheses.columns
+        general = total_hypotheses[total_hypotheses['genre'] == 'general']
+        populate_from_excel(general[general['feature'] == 'gender'], general_hypotheses.gender, cols)
+        populate_from_excel(general[general['feature'] == 'person'], general_hypotheses.person, cols)
+        populate_from_excel(general[general['feature'] == 'number'], general_hypotheses.number, cols)
+        populate_from_excel(general[general['feature'] == 'tense'], general_hypotheses.tense, cols)
+        populate_from_excel(general[general['feature'] == 'aspect'], general_hypotheses.aspect, cols)
+        populate_from_excel(general[general['feature'] == 'type'], general_hypotheses.type, cols)
+        populate_from_excel(general[general['feature'] == 'state'], general_hypotheses.state, cols)
+        populate_from_excel(general[general['feature'] == 'annex'], general_hypotheses.annex, cols)
 
     else:
         hypothesis_size = len(pattern)
 
-        general_hypotheses.gender = initialize_general_hypotheses(hypothesis_size)
-        general_hypotheses.person = initialize_general_hypotheses(hypothesis_size)
-        general_hypotheses.number = initialize_general_hypotheses(hypothesis_size)
-        general_hypotheses.aspect = initialize_general_hypotheses(hypothesis_size)
-        general_hypotheses.type = initialize_general_hypotheses(hypothesis_size)
-        general_hypotheses.tense = initialize_general_hypotheses(hypothesis_size)
-        general_hypotheses.state = initialize_general_hypotheses(hypothesis_size)
-        general_hypotheses.radical = initialize_general_hypotheses(hypothesis_size)
-        general_hypotheses.annex = initialize_general_hypotheses(hypothesis_size)
+        general_hypotheses.gender = [initialize_general_hypotheses(hypothesis_size)]
+        general_hypotheses.person = [initialize_general_hypotheses(hypothesis_size)]
+        general_hypotheses.number = [initialize_general_hypotheses(hypothesis_size)]
+        general_hypotheses.aspect = [initialize_general_hypotheses(hypothesis_size)]
+        general_hypotheses.type = [initialize_general_hypotheses(hypothesis_size)]
+        general_hypotheses.tense = [initialize_general_hypotheses(hypothesis_size)]
+        general_hypotheses.state = [initialize_general_hypotheses(hypothesis_size)]
+        general_hypotheses.annex = [initialize_general_hypotheses(hypothesis_size)]
 
 
-def get_specific_hypotheses(pattern):
+def get_specific_hypotheses(pattern, sentence, label):
     hypotheses_file_name = get_filename('_hypotheses', pattern)
     if os.path.exists(hypotheses_file_name):
 
-        total_hypotheses = pd.read_csv(hypotheses_file_name)
-        specific = total_hypotheses[total_hypotheses['type'] == 'specific']
-
-        specific_hypotheses.gender = specific[specific['feature'] == 'gender']
-        specific_hypotheses.person = specific[specific['feature'] == 'person']
-        specific_hypotheses.number = specific[specific['feature'] == 'number']
-        specific_hypotheses.aspect = specific[specific['feature'] == 'aspect']
-        specific_hypotheses.type = specific[specific['feature'] == 'type']
-        specific_hypotheses.tense = specific[specific['feature'] == 'tense']
-        specific_hypotheses.state = specific[specific['feature'] == 'state']
-        specific_hypotheses.radical = specific[specific['feature'] == 'radical']
-        specific_hypotheses.annex = specific[specific['feature'] == 'annex']
+        total_hypotheses = pd.read_excel(hypotheses_file_name, sheet_name='Sheet1')
+        specific = total_hypotheses[total_hypotheses['genre'] == 'specific']
+        cols = total_hypotheses.columns
+        if len(specific_hypotheses.gender) == 0:
+            populate_from_excel(specific[specific['feature'] == 'gender'], specific_hypotheses.gender, cols)
+            populate_from_excel(specific[specific['feature'] == 'person'], specific_hypotheses.person, cols)
+            populate_from_excel(specific[specific['feature'] == 'number'], specific_hypotheses.number, cols)
+            populate_from_excel(specific[specific['feature'] == 'aspect'], specific_hypotheses.aspect, cols)
+            populate_from_excel(specific[specific['feature'] == 'type'], specific_hypotheses.type, cols)
+            populate_from_excel(specific[specific['feature'] == 'tense'], specific_hypotheses.tense, cols)
+            populate_from_excel(specific[specific['feature'] == 'state'], specific_hypotheses.state, cols)
+            populate_from_excel(specific[specific['feature'] == 'annex'], specific_hypotheses.annex, cols)
     else:
-        dataset_filename = get_filename('_dataset', pattern)
-        if os.path.exists(dataset_filename):
-            dataset = pd.read_csv(dataset_filename)
+        name_pattern = pattern[:]
+        dataset_filename = get_filename('_dataset', name_pattern)
+        if not os.path.exists(dataset_filename):
+            dataset = pd.DataFrame(columns=pattern)
+            dict_for_ds = dict()
+            for index, element in enumerate(pattern):
+                dict_for_ds[element] = sentence[index]
+            dict_for_ds['label'] = label
+            dataset = dataset.append(dict_for_ds, ignore_index=True)
+        else:
+            dataset = pd.read_excel(dataset_filename, sheet_name='Sheet1')
+        if len(specific_hypotheses.gender) == 0:
             specific_hypotheses.gender = initialize_specific_hypotheses(dataset, 'gender')
             specific_hypotheses.person = initialize_specific_hypotheses(dataset, 'person')
             specific_hypotheses.number = initialize_specific_hypotheses(dataset, 'number')
@@ -200,7 +269,6 @@ def get_specific_hypotheses(pattern):
             specific_hypotheses.type = initialize_specific_hypotheses(dataset, 'type')
             specific_hypotheses.tense = initialize_specific_hypotheses(dataset, 'tense')
             specific_hypotheses.state = initialize_specific_hypotheses(dataset, 'state')
-            specific_hypotheses.radical = initialize_specific_hypotheses(dataset, 'radical')
             specific_hypotheses.annex = initialize_specific_hypotheses(dataset, 'annex')
 
 
@@ -220,8 +288,6 @@ def get_hypothesis_by_feature(genre, feature):
             return specific_hypotheses.tense
         elif feature == 'state':
             return specific_hypotheses.state
-        elif feature == 'radical':
-            return specific_hypotheses.radical
         elif feature == 'annex':
             return specific_hypotheses.annex
     else:
@@ -239,21 +305,23 @@ def get_hypothesis_by_feature(genre, feature):
             return general_hypotheses.tense
         elif feature == 'state':
             return general_hypotheses.state
-        elif feature == 'radical':
-            return general_hypotheses.radical
         elif feature == 'annex':
             return general_hypotheses.annex
 
 
 def build_hypothesis(sentence, pattern, label, feature):
-    get_general_hypotheses(pattern)
-    get_specific_hypotheses(pattern)
+    name_pattern = pattern[:]
+    if len(general_hypotheses.gender) == 0:
+        get_general_hypotheses(name_pattern)
+    name_pattern = pattern[:]
+    if len(specific_hypotheses.gender) == 0:
+        get_specific_hypotheses(name_pattern, sentence, label)
     specific_feature_hypotheses = get_hypothesis_by_feature('specific', feature)
     general_feature_hypotheses = get_hypothesis_by_feature('general', feature)
     if label == 'yes':
         recorded_changes = []
         for specific in specific_feature_hypotheses:
-            for source in range(0, len(pattern), -1):
+            for source in range(0, len(pattern)):
                 word_type = get_word_feature(sentence[source], pattern[source], feature)
                 for agreement in specific[source]:
                     word_to_match_type = get_word_feature(sentence[agreement], pattern[agreement], feature)
@@ -331,14 +399,13 @@ def build_hypothesis(sentence, pattern, label, feature):
             for general in general_feature_hypotheses:
                 if len(general[index]) < generality_allowed:
                     general_feature_hypotheses.remove(general)
-    return general_hypotheses, specific_hypotheses
 
 
 def get_filename(extension, pattern):
     chosen_file_name = ''
     for element in pattern:
         chosen_file_name = chosen_file_name + mappings[element]
-    chosen_file_name = chosen_file_name + extension + '.csv'
+    chosen_file_name = chosen_file_name + extension + '.xlsx'
 
     return chosen_file_name
 
@@ -346,10 +413,8 @@ def get_filename(extension, pattern):
 def create_dataset(header):
     file_name = get_filename('_dataset', header)
     header.append('label')
-    with open(file_name, mode='w') as csv_file:
-        fieldnames = header
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
+    dataset = pd.DataFrame(columns=header)
+    dataset.to_excel(file_name, startrow=0, sheet_name='Sheet1', index=False)
     return file_name
 
 
@@ -360,71 +425,60 @@ def create_hypotheses_file(header):
         fieldnames.append(mappings[pattern])
     fieldnames.append('feature')
     fieldnames.append('genre')
-    with open(file_name, mode='w') as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
+    dataset = pd.DataFrame(columns=fieldnames)
+    dataset.to_excel(file_name, startrow=0, sheet_name='Sheet1', index=False)
     return fieldnames
 
 
-def append_hypothesis_rows(filename, fieldnames, genre, feature):
-    hypotheses_to_save = get_hypothesis_by_feature(genre, feature)
-    with open(filename, mode='a') as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        csv_row = dict()
-        csv_row['genre'] = genre
-        csv_row['feature'] = feature
-        for hypothesis in hypotheses_to_save:
-            for index, pattern in fieldnames:
-                if pattern != 'genre' and pattern != 'feature':
-                    csv_row[pattern] = hypothesis[index]
-            writer.writerow(csv_row)
+def unify_hypotheses(hypos, unified_hypos, index):
+    most_specific = 0
+    chosen = []
+    for specific in hypos:
+        if len(specific[index]) < most_specific:
+            most_specific = len(specific[index])
+            chosen = specific[index]
+    unified_hypos.append(chosen)
 
 
-def __append_hypo_rows(hypotheses_filename, hypothesis_fieldnames, genre):
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'gender')
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'person')
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'number')
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'tense')
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'aspect')
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'state')
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'radical')
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'annex')
-    append_hypothesis_rows(hypotheses_filename, hypothesis_fieldnames, genre, 'type')
+def unify_general(hypos, unified_hypos, index):
+    most_general = 0
+    chosen = []
+    for general in hypos:
+        if len(general[index]) > most_general:
+            most_general = len(general[index])
+            chosen = general[index]
+    unified_hypos.append(chosen)
 
 
 @app.route('/saveword', methods=['GET', 'POST'])
 @cross_origin(allow_headers=['Content-Type', 'Access-Control-Allow-Origin'])
 def add_word_to_dictionary():
+    global dictionary
     user_input = request.json
     word = user_input['full']
-    pos = user_input['pos']
-    gender = user_input['gen']
-    tense = user_input['ten']
-    person = user_input['pers']
-    number = user_input['number']
-    aspect = user_input['asp']
-    tpe = user_input['type']
-    state = user_input['st']
     radical = user_input['rad']
-    annex = user_input['an']
-    word_form = pd.DataFrame()
-    word_form['FULL'] = word
-    word_form['POS'] = pos
-    word_form['GEN'] = gender
-    word_form['PERS'] = person
-    word_form['NUM'] = number
-    word_form['TENSE'] = tense
-    word_form['ASPECT'] = aspect
-    word_form['TYPE'] = tpe
-    word_form['STATE'] = state
-    word_form['RADICAL'] = radical
-    word_form['ANNEX'] = annex
-    dictionary.append(word_form)
-    with open('dictionary.csv', mode='a') as csv_file:
-        fieldnames = dictionary.columns
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writerow({'FULL': word, 'POS': pos, 'GEN': gender, 'PERS': person, 'NUM': number, "TENSE": tense,
-                         "ASPECT": aspect, "TYPE": tpe, "STATE": state, "RADICAL": radical, "ANNEX": annex})
+    pos = mappings[user_input['pos']]
+    gender = mappings[user_input['gen']]
+    tense = mappings[user_input['ten']]
+    person = mappings[user_input['pers']]
+    number = mappings[user_input['number']]
+    aspect = mappings[user_input['asp']]
+    tpe = mappings[user_input['type']]
+    state = mappings[user_input['st']]
+    annex = mappings[user_input['an']]
+
+    if pos == 'prep' or pos == 'conj':
+        dictionary = dictionary.append(
+            {'BASE': word, 'POS': pos, 'GEN': gender, 'PERS': person, 'NUM': number, 'TENSE': tense,
+             'ASPECT': aspect, 'TYPE': tpe, 'STATE': state, 'RADICAL': radical, 'ANNEX': annex},
+            ignore_index=True)
+    else:
+        dictionary = dictionary.append(
+            {'FULL': word, 'POS': pos, 'GEN': gender, 'PERS': person, 'NUM': number, 'TENSE': tense,
+             'ASPECT': aspect, 'TYPE': tpe, 'STATE': state, 'RADICAL': radical, 'ANNEX': annex},
+            ignore_index=True)
+    dictionary.to_excel("lexicon.xlsx", startrow=0, sheet_name='V', index=False)
+    return jsonify(resp='All Good Ma Main')
 
 
 @app.route('/generate', methods=['GET', 'POST'])
@@ -433,21 +487,76 @@ def build_sentence():
     user_input = request.json
     pattern = user_input['pattern']
     num_of_sentences = user_input['number']
-
-    dataset_file_name = get_filename('_dataset', pattern)
+    for i in range(0, len(pattern)):
+        last_dig = ''
+        idx = -1
+        for j in range(0, i):
+            if pattern[i] in pattern[j]:
+                idx = j
+                last_dig = str(pattern[j][len(pattern[j]) - 1])
+        if idx != -1:
+            if '1' <= last_dig <= '9':
+                pattern[i] += chr(ord(last_dig) + 1)
+            else:
+                pattern[i] += '1'
+    name_pattern = pattern[:]
+    dataset_file_name = get_filename('_dataset', name_pattern)
+    name_pattern = pattern[:]
+    hypotheses_file_name = get_filename('_hypotheses', name_pattern)
     chosen_sentences = []
-    if os.path.exists(dataset_file_name):
-        dataset = pd.read_csv(dataset_file_name)
-        get_general_hypotheses(pattern)
-        get_specific_hypotheses(pattern)
-        dfs(0, [], pattern)
-        for sentence in sentencesToReturn:
-            if sentence not in dataset:
-                chosen_sentences.append(sentence)
-                if len(chosen_sentences) == num_of_sentences:
-                    break
+    if os.path.exists(dataset_file_name) and os.path.exists(hypotheses_file_name):
+        dataset = pd.read_excel(dataset_file_name, sheet_name='Sheet1')
+        name_pattern = pattern[:]
+        get_specific_hypotheses(name_pattern, [], '')
+        name_pattern = pattern[:]
+        get_general_hypotheses(name_pattern)
+        for i in range(0, len(pattern)):
+            unify_hypotheses(specific_hypotheses.gender, unified_specific_hypothesis.gender, i)
+            unify_hypotheses(specific_hypotheses.person, unified_specific_hypothesis.person, i)
+            unify_hypotheses(specific_hypotheses.number, unified_specific_hypothesis.number, i)
+            unify_hypotheses(specific_hypotheses.tense, unified_specific_hypothesis.tense, i)
+            unify_hypotheses(specific_hypotheses.aspect, unified_specific_hypothesis.aspect, i)
+            unify_hypotheses(specific_hypotheses.state, unified_specific_hypothesis.state, i)
+            unify_hypotheses(specific_hypotheses.annex, unified_specific_hypothesis.annex, i)
+            unify_hypotheses(specific_hypotheses.type, unified_specific_hypothesis.type, i)
+            unify_general(general_hypotheses.gender, unified_general_hypothesis.gender, i)
+            unify_general(general_hypotheses.person, unified_general_hypothesis.person, i)
+            unify_general(general_hypotheses.number, unified_general_hypothesis.number, i)
+            unify_general(general_hypotheses.tense, unified_general_hypothesis.tense, i)
+            unify_general(general_hypotheses.aspect, unified_general_hypothesis.aspect, i)
+            unify_general(general_hypotheses.state, unified_general_hypothesis.state, i)
+            unify_general(general_hypotheses.annex, unified_general_hypothesis.annex, i)
+            unify_general(general_hypotheses.type, unified_general_hypothesis.type, i)
 
-    return chosen_sentences
+        name_pattern = pattern[:]
+        global sentencesToReturn
+        sentencesToReturn = []
+        dfs(0, [], name_pattern, num_of_sentences/2, 'specific')
+        if (num_of_sentences - (num_of_sentences/2)) > 0:
+            dfs(0, [], name_pattern, num_of_sentences - (num_of_sentences/2), 'general')
+        random.shuffle(sentencesToReturn)
+        random.shuffle(sentencesToReturn)
+        random.shuffle(sentencesToReturn)
+        for index, sentence in enumerate(sentencesToReturn):
+            if len(chosen_sentences) == num_of_sentences:
+                break
+            if (num_of_sentences - len(chosen_sentences)) == (len(sentencesToReturn) - index):
+                for i in range(index, len(sentencesToReturn)):
+                    chosen_sentences.append(sentencesToReturn[i])
+            else:
+                statement = True
+                for i, element in enumerate(pattern):
+                    statement = statement & (dataset[element] == sentence[i])
+                statement = statement.any()
+                if not statement:
+                    chosen_sentences.append(sentence)
+                    if len(chosen_sentences) == num_of_sentences:
+                        break
+        response = jsonify(response='All Good Ma Main', sentences=chosen_sentences)
+    else:
+        response = jsonify(response='Not Trained Yet', sentences=[])
+
+    return response
 
 
 @app.route('/getdict', methods=['GET', 'POST'])
@@ -470,51 +579,117 @@ def send_dictionary():
     return jsonify(v=verb, cn=cn, pn=pn, adj=adj, prep=prep, pron=pron, conj=conj)
 
 
+def build_dict(df, hypos, genre, feature, pattern):
+    for hypo in hypos:
+        excel_hypo_row = dict()
+        for index, element in enumerate(pattern):
+            excel_hypo_row[element] = hypo[index]
+        excel_hypo_row['feature'] = feature
+        excel_hypo_row['genre'] = genre
+        df = df.append(excel_hypo_row, ignore_index=True)
+    return df
+
+
+def remove_duplicates(hypo):
+    return [hypo[x] for x in range(len(hypo)) if not (hypo[x] in hypo[:x])]
+
+
 @app.route('/train', methods=['GET', 'POST'])
 @cross_origin()
 def get_user_input():
     user_input = request.json
     pattern = user_input['pattern']
     sentence = user_input['sentence']
-    dataset_name = get_filename('_dataset', pattern)
+    label = user_input['label']
+    for i in range(0, len(pattern)):
+        last_dig = ''
+        idx = -1
+        for j in range(0, i):
+            if pattern[i] in pattern[j]:
+                idx = j
+                last_dig = str(pattern[j][len(pattern[j]) - 1])
+        if idx != -1:
+            if '1' <= last_dig <= '9':
+                pattern[i] += chr(ord(last_dig) + 1)
+            else:
+                pattern[i] += '1'
+    name_pattern = pattern[:]
+    hypotheses_filename = get_filename('_hypotheses', name_pattern)
+    name_pattern = pattern[:]
+    dataset_name = get_filename('_dataset', name_pattern)
+    if label == 'no' and not os.path.exists(dataset_name) and not os.path.exists(hypotheses_filename):
+        return jsonify(resp='Not trained yet')
+    name_pattern = pattern[:]
+    name_pattern.append('feature')
+    name_pattern.append('genre')
+    hypotheses_to_save = pd.DataFrame(columns=name_pattern)
+    name_pattern = pattern[:]
+    build_hypothesis(sentence, name_pattern, user_input['label'], 'gender')
+    remove_duplicates(general_hypotheses.gender)
+    general_hypotheses.gender = remove_duplicates(general_hypotheses.gender)
+    specific_hypotheses.gender = remove_duplicates(specific_hypotheses.gender)
+    hypotheses_to_save = build_dict(hypotheses_to_save, general_hypotheses.gender, 'general', 'gender', name_pattern)
+    hypotheses_to_save = build_dict(hypotheses_to_save, specific_hypotheses.gender, 'specific', 'gender', name_pattern)
+    name_pattern = pattern[:]
+    build_hypothesis(sentence, name_pattern, user_input['label'], 'person')
+    general_hypotheses.person = remove_duplicates(general_hypotheses.person)
+    specific_hypotheses.person = remove_duplicates(specific_hypotheses.person)
+    hypotheses_to_save = build_dict(hypotheses_to_save, general_hypotheses.person, 'general', 'person', name_pattern)
+    hypotheses_to_save = build_dict(hypotheses_to_save, specific_hypotheses.person, 'specific', 'person', name_pattern)
+    name_pattern = pattern[:]
+    build_hypothesis(sentence, name_pattern, user_input['label'], 'number')
+    general_hypotheses.number = remove_duplicates(general_hypotheses.number)
+    specific_hypotheses.number = remove_duplicates(specific_hypotheses.number)
+    hypotheses_to_save = build_dict(hypotheses_to_save, general_hypotheses.number, 'general', 'number', name_pattern)
+    hypotheses_to_save = build_dict(hypotheses_to_save, specific_hypotheses.number, 'specific', 'number', name_pattern)
+    name_pattern = pattern[:]
+    build_hypothesis(sentence, name_pattern, user_input['label'], 'tense')
+    general_hypotheses.tense = remove_duplicates(general_hypotheses.tense)
+    specific_hypotheses.tense = remove_duplicates(specific_hypotheses.tense)
+    hypotheses_to_save = build_dict(hypotheses_to_save, general_hypotheses.tense, 'general', 'tense', name_pattern)
+    hypotheses_to_save = build_dict(hypotheses_to_save, specific_hypotheses.tense, 'specific', 'tense', name_pattern)
+    name_pattern = pattern[:]
+    build_hypothesis(sentence, name_pattern, user_input['label'], 'aspect')
+    general_hypotheses.aspect = remove_duplicates(general_hypotheses.aspect)
+    specific_hypotheses.aspect = remove_duplicates(specific_hypotheses.aspect)
+    hypotheses_to_save = build_dict(hypotheses_to_save, general_hypotheses.aspect, 'general', 'aspect', name_pattern)
+    hypotheses_to_save = build_dict(hypotheses_to_save, specific_hypotheses.aspect, 'specific', 'aspect', name_pattern)
+    name_pattern = pattern[:]
+    build_hypothesis(sentence, name_pattern, user_input['label'], 'type')
+    general_hypotheses.type = remove_duplicates(general_hypotheses.type)
+    specific_hypotheses.type = remove_duplicates(specific_hypotheses.type)
+    hypotheses_to_save = build_dict(hypotheses_to_save, general_hypotheses.type, 'general', 'type', name_pattern)
+    hypotheses_to_save = build_dict(hypotheses_to_save, specific_hypotheses.type, 'specific', 'type', name_pattern)
+    name_pattern = pattern[:]
+    build_hypothesis(sentence, name_pattern, user_input['label'], 'state')
+    general_hypotheses.state = remove_duplicates(general_hypotheses.state)
+    specific_hypotheses.state = remove_duplicates(specific_hypotheses.state)
+    hypotheses_to_save = build_dict(hypotheses_to_save, general_hypotheses.state, 'general', 'state', name_pattern)
+    hypotheses_to_save = build_dict(hypotheses_to_save, specific_hypotheses.state, 'specific', 'state', name_pattern)
+    name_pattern = pattern[:]
+    build_hypothesis(sentence, name_pattern, user_input['label'], 'annex')
+    general_hypotheses.annex = remove_duplicates(general_hypotheses.annex)
+    specific_hypotheses.annex = remove_duplicates(specific_hypotheses.annex)
+    hypotheses_to_save = build_dict(hypotheses_to_save, general_hypotheses.annex, 'general', 'annex', name_pattern)
+    hypotheses_to_save = build_dict(hypotheses_to_save, specific_hypotheses.annex, 'specific', 'annex', name_pattern)
+    name_pattern = pattern[:]
+    hypotheses_filename = get_filename('_hypotheses', name_pattern)
+    hypotheses_to_save.to_excel(hypotheses_filename, startrow=0, sheet_name='Sheet1', index=False)
+    name_pattern = pattern[:]
+    dataset_name = get_filename('_dataset', name_pattern)
+    name_pattern = pattern[:]
     if not os.path.exists(dataset_name):
         if user_input['label'] == 'no':
             return 'This is a new pattern, please start with a positive example'
-        dataset_name = create_dataset(pattern)
-
-    general_hypotheses.gender, specific_hypotheses.gender = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                             'gender')
-    general_hypotheses.person, specific_hypotheses.person = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                             'person')
-    general_hypotheses.number, specific_hypotheses.number = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                             'number')
-    general_hypotheses.tense, specific_hypotheses.tense = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                           'tense')
-    general_hypotheses.aspect, specific_hypotheses.aspect = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                             'aspect')
-    general_hypotheses.type, specific_hypotheses.type = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                         'type')
-    general_hypotheses.radical, specific_hypotheses.radical = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                               'radical')
-    general_hypotheses.state, specific_hypotheses.state = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                           'state')
-    general_hypotheses.annex, specific_hypotheses.annex = build_hypothesis(sentence, pattern, user_input['label'],
-                                                                           'annex')
-
-    hypotheses_filename = get_filename('_hypotheses', pattern)
-    hypothesis_fieldnames = create_hypotheses_file(pattern)
-
-    __append_hypo_rows(hypotheses_filename, hypothesis_fieldnames, 'general')
-    __append_hypo_rows(hypotheses_filename, hypothesis_fieldnames, 'specific')
-    with open(dataset_name, mode='a') as csv_file:
-        fieldnames = pattern
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        csv_row = dict()
-        for index, element in enumerate(pattern):
-            csv_row[element] = sentence[index]
-        csv_row['label'] = user_input['yes']
-        writer.writerow(csv_row)
-    return 'Tudo Bem'
+        dataset_name = create_dataset(name_pattern)
+    dataset = pd.read_excel(dataset_name, sheet_name='Sheet1')
+    dict_for_excel = dict()
+    for index, element in enumerate(pattern):
+        dict_for_excel[element] = sentence[index]
+    dict_for_excel['label'] = label
+    dataset = dataset.append(dict_for_excel, ignore_index=True)
+    dataset.to_excel(dataset_name, startrow=0, sheet_name='Sheet1', index=False)
+    return jsonify(resp='Tudo Bem')
 
 
 if __name__ == '__main__':
